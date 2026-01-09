@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(del \"C:\\\\Users\\\\jgewi\\\\OneDrive\\\\Attachments\\\\Desktop\\\\Kalshi Version 1\\\\arb-kalshi-sportsbook\\\\redis_ingest\\\\config.py\")",
+      "Bash(docker run:*)",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\" -ErrorAction SilentlyContinue)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(docker ps:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)",
+      "Bash(timeout 30 python:*)",
+      "Bash(echo:*)",
+      "Bash(timeout 5 tail:*)",
+      "WebFetch(domain:the-odds-api.com)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker exec:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.kalshi.com)",
+      "WebFetch(domain:zuplo.com)",
+      "WebFetch(domain:www.alphascope.app)",
+      "Bash(wc:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(del \"app\\\\cli\\\\run_detector.py\")",
+      "Bash(del \"app\\\\cli\\\\run_executor.py\")",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(dir:*)",
+      "WebFetch(domain:help.kalshi.com)",
+      "Bash(timeout /t 10 /nobreak)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

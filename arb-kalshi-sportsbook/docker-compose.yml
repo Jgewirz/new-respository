@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: arb-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: arb_kalshi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: arb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  questdb:
+    image: questdb/questdb:8.2.1
+    container_name: arb-questdb
+    ports:
+      - "9000:9000"   # Web Console & REST API
+      - "9009:9009"   # InfluxDB Line Protocol (high-speed ingestion)
+      - "8812:8812"   # PostgreSQL wire protocol
+      - "9003:9003"   # Health endpoint
+    volumes:
+      - questdb_data:/var/lib/questdb
+    environment:
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+      - QDB_TELEMETRY_ENABLED=false
+      - QDB_HTTP_MIN_ENABLED=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  questdb_data:
