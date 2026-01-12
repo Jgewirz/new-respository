@@ -265,8 +265,11 @@ class KalshiAuth:
         # Strip query parameters if present
         path = path.split("?")[0]
 
-        # Ensure path starts with API prefix
-        if not path.startswith(self.API_PREFIX):
+        # Handle path prefix
+        # WebSocket paths start with /trade-api/ws/v2
+        # REST paths start with /trade-api/v2
+        # Only prepend prefix if path doesn't already start with /trade-api
+        if not path.startswith("/trade-api"):
             path = self.API_PREFIX + path
 
         # Construct message

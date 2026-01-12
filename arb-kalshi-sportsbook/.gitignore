@@ -66,3 +66,14 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+nul
+
+# Temp files
+tmpclaude-*
+*.tmp
+
+# Keys directory (credentials)
+keys/
+
+# Credential files in connectors
+app/connectors/kalshi/make .env

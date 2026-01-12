@@ -12,6 +12,7 @@ Connection methods:
 - REST API (port 9000): HTTP queries
 """
 
+import os
 import socket
 from datetime import datetime, timezone
 from typing import Optional
@@ -20,16 +21,16 @@ from psycopg2.extras import RealDictCursor
 
 
 # =============================================================================
-# Configuration
+# Configuration (from environment variables with defaults)
 # =============================================================================
 
-QUESTDB_ILP_HOST = "localhost"
-QUESTDB_ILP_PORT = 9009
-QUESTDB_PG_HOST = "localhost"
-QUESTDB_PG_PORT = 8812
-QUESTDB_PG_USER = "admin"
-QUESTDB_PG_PASSWORD = "quest"
-QUESTDB_PG_DATABASE = "qdb"
+QUESTDB_ILP_HOST = os.environ.get("QUESTDB_ILP_HOST", "localhost")
+QUESTDB_ILP_PORT = int(os.environ.get("QUESTDB_ILP_PORT", "9009"))
+QUESTDB_PG_HOST = os.environ.get("QUESTDB_PG_HOST", "localhost")
+QUESTDB_PG_PORT = int(os.environ.get("QUESTDB_PG_PORT", "8812"))
+QUESTDB_PG_USER = os.environ.get("QUESTDB_PG_USER", "admin")
+QUESTDB_PG_PASSWORD = os.environ.get("QUESTDB_PG_PASSWORD", "quest")
+QUESTDB_PG_DATABASE = os.environ.get("QUESTDB_PG_DATABASE", "qdb")
 
 
 # =============================================================================

@@ -1,0 +1,239 @@
+# =============================================================================
+# Kalshi Arbitrage System - Full Stack Docker Compose
+# =============================================================================
+# This file includes all infrastructure AND application containers.
+#
+# Usage:
+#   Start all:     docker-compose -f docker-compose.full.yml up -d
+#   View logs:     docker-compose -f docker-compose.full.yml logs -f
+#   Stop all:      docker-compose -f docker-compose.full.yml down
+#   Clean reset:   docker-compose -f docker-compose.full.yml down -v
+#
+# Services:
+#   Infrastructure: postgres, redis, questdb
+#   Application:    ws-consumer, odds-ingest, realtime-detector
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # INFRASTRUCTURE LAYER
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Relational database for orders, positions, config
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: arb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: arb_kalshi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arb-network
+
+  # ---------------------------------------------------------------------------
+  # Redis - In-memory cache for sportsbook odds and hot data
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: arb-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arb-network
+
+  # ---------------------------------------------------------------------------
+  # QuestDB - Time-series database for ticks, trades, signals
+  # ---------------------------------------------------------------------------
+  questdb:
+    image: questdb/questdb:8.2.1
+    container_name: arb-questdb
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # Web Console
+      - "9009:9009"   # ILP ingestion
+      - "8812:8812"   # PostgreSQL wire
+      - "9003:9003"   # Health endpoint
+    volumes:
+      - questdb_data:/var/lib/questdb
+    environment:
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+      - QDB_TELEMETRY_ENABLED=false
+      - QDB_HTTP_MIN_ENABLED=true
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'SELECT 1' | nc localhost 8812 || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - arb-network
+
+  # ===========================================================================
+  # APPLICATION LAYER
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Schema Init - One-time QuestDB table creation
+  # ---------------------------------------------------------------------------
+  schema-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arb-schema-init
+    command: ["python", "-m", "app.cli.run_ingest", "schema"]
+    env_file:
+      - .env
+    environment:
+      - QUESTDB_ILP_HOST=questdb
+      - QUESTDB_PG_HOST=questdb
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/arb_kalshi
+    depends_on:
+      questdb:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - arb-network
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # WebSocket Consumer - Real-time Kalshi market data ingestion
+  # ---------------------------------------------------------------------------
+  ws-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arb-ws-consumer
+    restart: unless-stopped
+    command: ["python", "-m", "app.connectors.kalshi.ws_consumer", "--with-storage", "--with-detector"]
+    env_file:
+      - .env
+    environment:
+      - KALSHI_ENV=demo
+      - KALSHI_PRIVATE_KEY_PATH=/app/keys/kalshi_demo_private_key.pem
+      - QUESTDB_ILP_HOST=questdb
+      - QUESTDB_PG_HOST=questdb
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/arb_kalshi
+    volumes:
+      - ./keys:/app/keys:ro
+      - ./logs:/app/logs
+    depends_on:
+      schema-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      questdb:
+        condition: service_started
+    networks:
+      - arb-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Odds Ingest - Sportsbook consensus data ingestion
+  # ---------------------------------------------------------------------------
+  odds-ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arb-odds-ingest
+    restart: unless-stopped
+    command: ["python", "-m", "app.services.odds_ingest", "--continuous"]
+    env_file:
+      - .env
+    environment:
+      - QUESTDB_ILP_HOST=questdb
+      - QUESTDB_PG_HOST=questdb
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/arb_kalshi
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      schema-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - arb-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Integration Test - Validates the entire pipeline (optional)
+  # ---------------------------------------------------------------------------
+  integration-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arb-integration-test
+    command: ["python", "-m", "scripts.integration_test", "30"]
+    env_file:
+      - .env
+    environment:
+      - KALSHI_ENV=demo
+      - QUESTDB_ILP_HOST=questdb
+      - QUESTDB_PG_HOST=questdb
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./keys:/app/keys:ro
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      questdb:
+        condition: service_healthy
+    networks:
+      - arb-network
+    profiles:
+      - test  # Only runs with: docker-compose --profile test up integration-test
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  arb-network:
+    driver: bridge
+    name: arb-network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  postgres_data:
+    name: arb-postgres-data
+  redis_data:
+    name: arb-redis-data
+  questdb_data:
+    name: arb-questdb-data
